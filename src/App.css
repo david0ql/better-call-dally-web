@@ -722,11 +722,7 @@
   }
 
   .metricGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .metricGrid .metric:nth-child(3) {
-    display: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .tagGroup {
