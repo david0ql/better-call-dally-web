@@ -832,15 +832,6 @@ function App() {
         })),
     [servers],
   )
-  const alertPageIndex = useMemo(() => {
-    if (!alertServers.length) return null
-    const ids = new Set(alertServers.map((server) => server.id))
-    for (let i = 0; i < pages.length; i += 1) {
-      if (pages[i]?.some((server) => ids.has(server.id))) return i
-    }
-    return null
-  }, [alertServers, pages])
-
   useEffect(() => {
     if (demoMode) return
     if (hasAlert && !alertWasActiveRef.current) {
@@ -891,21 +882,12 @@ function App() {
   }, [pm2Issues])
 
   useEffect(() => {
-    if (!hasAlert || alertPageIndex == null) return
-    if (normalizedPageIndex === alertPageIndex) return
-    const timer = window.setTimeout(() => {
-      setPageIndex(alertPageIndex)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [alertPageIndex, hasAlert, normalizedPageIndex])
-
-  useEffect(() => {
-    if (pages.length <= 1 || hasAlert) return
+    if (pages.length <= 1) return
     const timer = window.setTimeout(() => {
       setPageIndex((prev) => (prev + 1) % pages.length)
     }, ROTATE_MS)
     return () => window.clearTimeout(timer)
-  }, [pageIndex, pages.length, hasAlert])
+  }, [pageIndex, pages.length])
 
   useEffect(() => {
     if (prevPageRef.current === normalizedPageIndex) return
@@ -1057,7 +1039,9 @@ function App() {
           <div>
             <div className="gridTitle">Server Matrix</div>
             <div className="gridSub">
-              {hasAlert ? 'Rotation paused — attention required.' : 'Auto-rotate when the grid is full.'}
+              {hasAlert
+              ? 'Attention required — rotation continues.'
+              : 'Auto-rotate when the grid is full.'}
             </div>
           </div>
           <div className="gridMeta">
@@ -1103,7 +1087,7 @@ function App() {
             ))}
           </div>
 
-          {pages.length > 1 && !hasAlert ? (
+          {pages.length > 1 ? (
             <div
               className="pageProgress"
               key={`progress-${normalizedPageIndex}`}
