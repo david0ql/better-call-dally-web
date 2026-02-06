@@ -1,0 +1,77 @@
+:root {
+  color-scheme: light;
+  font-family: var(--font-sans);
+  line-height: 1.4;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --font-sans: 'Space Grotesk', 'Segoe UI', sans-serif;
+  --font-mono: 'Space Mono', 'SFMono-Regular', monospace;
+
+  --bg: #f3f3f3;
+  --card: #ffffff;
+  --ink: #0b0b0b;
+  --ink-strong: #050505;
+  --ink-muted: #2f2f2f;
+  --ink-soft: #616161;
+  --border: #111111;
+  --border-soft: rgba(0, 0, 0, 0.12);
+  --radius-xl: 24px;
+  --radius-lg: 18px;
+  --radius-md: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    radial-gradient(circle at top left, #ffffff 0%, #f3f3f3 55%, #ededed 100%);
+  background-size: 90px 90px, 90px 90px, cover;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
