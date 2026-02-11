@@ -193,9 +193,14 @@ const shouldAlert = (server: ServerEntry, now: number) => {
 
 const playAlertTone = () => {
   try {
+    if (!window.userInteracted) return
     const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!AudioContextClass) return
     const context = new AudioContextClass()
+    if (context.state === 'suspended') {
+      context.resume().catch(() => {})
+      return
+    }
     const oscillator = context.createOscillator()
     const gain = context.createGain()
     oscillator.type = 'sine'
@@ -214,6 +219,17 @@ const playAlertTone = () => {
   } catch {
     // Ignore autoplay/audio context errors.
   }
+}
+
+// Track user interaction for audio
+if (typeof window !== 'undefined') {
+  const enableAudio = () => {
+    window.userInteracted = true
+    document.removeEventListener('click', enableAudio)
+    document.removeEventListener('keydown', enableAudio)
+  }
+  document.addEventListener('click', enableAudio)
+  document.addEventListener('keydown', enableAudio)
 }
 
 const chunk = <T,>(items: T[], size: number) => {
@@ -235,13 +251,6 @@ const connectionLabels: Record<ConnectionState, string> = {
 const formatMaybe = (value?: number | null, suffix = '') => {
   if (value == null || Number.isNaN(value)) return '--'
   return `${Math.round(value)}${suffix}`
-}
-
-const getMetricColor = (value?: number) => {
-  if (value == null || Number.isNaN(value)) return 'var(--ink-soft)'
-  if (value > 90) return 'var(--ink-strong)'
-  if (value > 75) return 'var(--ink)'
-  return 'var(--ink-muted)'
 }
 
 const parseServerList = (value: unknown): IncomingServerListItem[] => {
@@ -410,86 +419,74 @@ const ServerCard = ({ server, now }: { server: ServerEntry; now: number }) => {
   const cpu = stats?.cpuUsage
   const memPercent = percent(stats?.memoryUsed, stats?.memoryTotal)
   const diskPercent = percent(stats?.diskUsed, stats?.diskTotal)
-  const updateAge = server.lastUpdate ? now - server.lastUpdate : undefined
-  const fresh = updateAge != null && updateAge < 10_000
 
   return (
     <article
       className="serverCard"
       data-status={status.key}
-      data-fresh={fresh ? 'true' : 'false'}
       data-alert={alert ? 'true' : 'false'}
     >
-      <div className="serverHead">
+      <div className="serverHeader">
         <div>
           <div className="serverName">{server.name}</div>
           <div className="serverHost">{server.host}</div>
         </div>
-        <div className="statusStack">
-          {alert ? <div className="alertBadge">Check now</div> : null}
-          <div className={`statusPill status-${status.key}`}>{status.label}</div>
+        <div>
+          {alert ? <div className="alertBadge">ALERT</div> : null}
+          <div className={`statusBadge ${status.key}`}>{status.label}</div>
         </div>
       </div>
 
-      <div className="serverMetaRow">
-        <div className="metaPill">
+      <div className="serverInfo">
+        <div className="infoPill">
           PM2 {formatMaybe(stats?.pm2Procs)}
           {(stats?.pm2BadCount ?? 0) > 0 ? ` · ${stats?.pm2BadCount} down` : ''}
         </div>
-        <div className="metaPill">
+        <div className="infoPill">
           SUP {formatMaybe(stats?.supervisorRunning)}/{formatMaybe(stats?.supervisorTotal)}
         </div>
-        <div className="metaPill">Upd {formatAge(updateAge)}</div>
       </div>
 
-      <div className="metricGrid">
+      <div className="metrics">
         <div className="metric">
           <div className="metricLabel">CPU</div>
-          <div className="metricValue" style={{ color: getMetricColor(cpu) }}>
-            {formatPercent(cpu)}
-          </div>
+          <div className="metricValue">{formatPercent(cpu)}</div>
           <div className="metricBar">
-            <span style={{ width: `${cpu ?? 0}%` }} />
+            <div className="metricBarFill" style={{ width: `${cpu ?? 0}%` }} />
           </div>
         </div>
         <div className="metric">
           <div className="metricLabel">Memory</div>
-          <div className="metricValue" style={{ color: getMetricColor(memPercent) }}>
-            {formatPercent(memPercent)}
-          </div>
+          <div className="metricValue">{formatPercent(memPercent)}</div>
           <div className="metricBar">
-            <span style={{ width: `${memPercent ?? 0}%` }} />
+            <div className="metricBarFill" style={{ width: `${memPercent ?? 0}%` }} />
           </div>
         </div>
         <div className="metric">
           <div className="metricLabel">Disk</div>
-          <div className="metricValue" style={{ color: getMetricColor(diskPercent) }}>
-            {formatPercent(diskPercent)}
-          </div>
+          <div className="metricValue">{formatPercent(diskPercent)}</div>
           <div className="metricBar">
-            <span style={{ width: `${diskPercent ?? 0}%` }} />
+            <div className="metricBarFill" style={{ width: `${diskPercent ?? 0}%` }} />
           </div>
         </div>
       </div>
 
       <div className="serverFooter">
-        <div className="tagGroup">
+        <div className="tags">
           {server.tags.length ? (
-            server.tags.map((tag) => (
+            server.tags.slice(0, 3).map((tag) => (
               <span className="tag" key={`${server.id}-${tag}`}>
                 {tag}
               </span>
             ))
-          ) : (
-            <span className="tag">no-tags</span>
-          )}
+          ) : null}
         </div>
-        <div className="serverUptime">
-          {stats?.uptime ?? '--'} · {formatBytes(stats?.memoryUsed)} RAM
+        <div>
+          {stats?.uptime ?? '--'} · {formatBytes(stats?.memoryUsed)}
         </div>
       </div>
 
-      {stats?.error ? <div className="serverError">{stats.error}</div> : null}
+      {stats?.error ? <div className="infoPill" style={{ marginTop: 'auto', color: 'var(--danger)' }}>{stats.error}</div> : null}
     </article>
   )
 }
@@ -506,6 +503,7 @@ function App() {
   const [pageIndex, setPageIndex] = useState(0)
   const [prevPage, setPrevPage] = useState<number | null>(null)
   const prevPageRef = useRef(0)
+
   const alertWasActiveRef = useRef(false)
   const pm2ToastRef = useRef(new Map<string, { signature: string; lastToastAt: number }>())
   const connectionStateRef = useRef(connectionState)
@@ -775,15 +773,17 @@ function App() {
         handleMessage(event.data)
       }
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        console.warn('WebSocket error:', error)
         setConnectionState('error')
         ws.close()
       }
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (listRefreshTimer) window.clearInterval(listRefreshTimer)
         setConnectionState('closed')
         if (!shouldReconnect) return
+        if (event.code === 1000) return // Normal closure
         reconnectTimer = window.setTimeout(connect, backoff)
         backoff = Math.min(backoff * 1.6, 15_000)
       }
@@ -890,11 +890,13 @@ function App() {
   }, [pageIndex, pages.length])
 
   useEffect(() => {
-    if (prevPageRef.current === normalizedPageIndex) return
-    setPrevPage(prevPageRef.current)
-    prevPageRef.current = normalizedPageIndex
-    const timer = window.setTimeout(() => setPrevPage(null), 650)
-    return () => window.clearTimeout(timer)
+    const prevIndex = prevPageRef.current
+    if (prevIndex !== normalizedPageIndex) {
+      setPrevPage(prevIndex)
+      prevPageRef.current = normalizedPageIndex
+      const timer = window.setTimeout(() => setPrevPage(null), 650)
+      return () => window.clearTimeout(timer)
+    }
   }, [normalizedPageIndex])
 
   const aggregates = useMemo(() => {
@@ -960,109 +962,52 @@ function App() {
   const outgoingPage =
     prevPage != null ? pages[pages.length ? prevPage % pages.length : 0] ?? [] : []
 
-  const lastMessageAge = lastMessageAt ? now - lastMessageAt : undefined
   const lastUpdateAge = aggregates.latestUpdate ? now - aggregates.latestUpdate : undefined
-
-  const timeLabel = new Date(now).toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-  const dateLabel = new Date(now).toLocaleDateString(undefined, {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
 
   return (
     <div className="app">
-      <header className="topBar compact">
-        <div className="brand">
-          <div className="brandMark">BCD</div>
-          <div>
-            <div className="brandKicker">Better Call Dally</div>
-            <h1>Command Deck</h1>
+      <header className="header">
+        <div className="logo">
+          <div className="logoIcon">BCD</div>
+          <div className="logoText">
+            <h1>Server Matrix</h1>
+            <span>Better Call Dally</span>
           </div>
         </div>
-        <div className="topMeta">
-          <div className="metaCard">
-            <span className={`signal ${connectionState}`} />
-            <div>
-              <div className="metaLabel">Realtime</div>
-              <div className="metaValue">{connectionLabels[connectionState]}</div>
-              <div className="metaSub">WS {demoMode ? 'demo' : 'live'} · {formatAge(lastMessageAge)}</div>
-            </div>
-          </div>
-          <div className="metaCard">
-            <div className="metaLabel">Local Time</div>
-            <div className="metaValue">{timeLabel}</div>
-            <div className="metaSub">{dateLabel}</div>
-          </div>
+        <div className="connectionStatus">
+          <div className={`statusDot ${connectionState}`} />
+          <div className="statusText">{connectionLabels[connectionState]}</div>
         </div>
       </header>
 
-      <section className="summaryBar">
-        <div className="summaryItem">
-          <div className="summaryLabel">Fleet</div>
-          <div className="summaryValue">{servers.length}</div>
-          <div className="summarySub">
-            {aggregates.online} nominal · {aggregates.warn} hot · {aggregates.offline} offline ·{' '}
-            {aggregates.disabled} disabled
-          </div>
+      <section className="statsBar">
+        <div className="statCard">
+          <div className="statValue">{servers.length}</div>
+          <div className="statLabel">Total Servers</div>
+          <div className="statDetail">{aggregates.online} healthy</div>
         </div>
-        <div className="summaryItem">
-          <div className="summaryLabel">Avg Load</div>
-          <div className="summaryValue">
-            {formatPercent(aggregates.avgCpu)} CPU · {formatPercent(aggregates.avgMem)} MEM
-          </div>
-          <div className="summarySub">
-            Disk {formatPercent(aggregates.avgDisk)} · RAM {formatBytes(servers[0]?.stats?.memoryTotal)}
-          </div>
+        <div className="statCard">
+          <div className="statValue">{formatPercent(aggregates.avgCpu)}</div>
+          <div className="statLabel">Avg CPU</div>
+          <div className="statDetail">{formatPercent(aggregates.avgMem)} RAM</div>
         </div>
-        <div className="summaryItem">
-          <div className="summaryLabel">Processes</div>
-          <div className="summaryValue">{formatMaybe(aggregates.pm2Total)} PM2</div>
-          <div className="summarySub">
-            SUP {formatMaybe(aggregates.supRunning)}/{formatMaybe(aggregates.supTotal)} running
-          </div>
+        <div className="statCard">
+          <div className="statValue">{formatMaybe(aggregates.pm2Total)}</div>
+          <div className="statLabel">PM2 Processes</div>
+          <div className="statDetail">{formatMaybe(aggregates.supRunning)} running</div>
         </div>
-        <div className="summaryItem">
-          <div className="summaryLabel">Freshness</div>
-          <div className="summaryValue">{formatAge(lastUpdateAge)}</div>
-          <div className="summarySub">Rotation {pages.length > 1 ? `${ROTATE_MS / 1000}s` : 'static'}</div>
+        <div className="statCard">
+          <div className="statValue">{formatAge(lastUpdateAge)}</div>
+          <div className="statLabel">Last Update</div>
+          <div className="statDetail">{pages.length} page{pages.length !== 1 ? 's' : ''}</div>
         </div>
       </section>
 
-      <section className="gridShell">
-        <div className="gridHeader">
-          <div>
-            <div className="gridTitle">Server Matrix</div>
-            <div className="gridSub">
-              {hasAlert
-              ? 'Attention required — rotation continues.'
-              : 'Auto-rotate when the grid is full.'}
-            </div>
-          </div>
-          <div className="gridMeta">
-            {hasAlert ? (
-              <div className="gridAlert">
-                Attention · {alertServers.length} {alertServers.length === 1 ? 'server' : 'servers'}
-              </div>
-            ) : null}
-            <div className="gridMetaItem">
-              {gridMetrics.columns} × {gridMetrics.rows} · {gridMetrics.pageSize} slots
-            </div>
-            <div className="gridMetaItem">
-              Page {normalizedPageIndex + 1} / {pages.length}
-            </div>
-          </div>
-        </div>
-
-        <div className="gridStage" ref={gridRef} data-rotating={pages.length > 1 ? 'true' : 'false'}>
+      <section className="matrixContainer">
+        <div className="matrixGrid" ref={gridRef}>
           {prevPage != null ? (
             <div
-              className="gridPage exit"
+              className="matrixPage pageOut"
               style={{
                 gridTemplateColumns: `repeat(${gridMetrics.columns}, minmax(0, 1fr))`,
                 gridTemplateRows: `repeat(${gridMetrics.rows}, minmax(0, 1fr))`,
@@ -1075,7 +1020,7 @@ function App() {
           ) : null}
 
           <div
-            className="gridPage enter"
+            className="matrixPage pageIn"
             key={`page-${normalizedPageIndex}`}
             style={{
               gridTemplateColumns: `repeat(${gridMetrics.columns}, minmax(0, 1fr))`,
@@ -1086,18 +1031,18 @@ function App() {
               <ServerCard key={server.id} server={server} now={now} />
             ))}
           </div>
-
-          {pages.length > 1 ? (
-            <div
-              className="pageProgress"
-              key={`progress-${normalizedPageIndex}`}
-              style={{ animationDuration: `${ROTATE_MS}ms` }}
-            />
-          ) : null}
         </div>
+
+        {pages.length > 1 ? (
+          <div
+            className="progressLine"
+            key={`progress-${normalizedPageIndex}`}
+            style={{ animationDuration: `${ROTATE_MS}ms` }}
+          />
+        ) : null}
       </section>
 
-      <ToastContainer position="top-right" newestOnTop pauseOnHover theme="light" />
+      <ToastContainer position="top-right" newestOnTop pauseOnHover theme="dark" />
     </div>
   )
 }

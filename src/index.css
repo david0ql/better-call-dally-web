@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   font-family: var(--font-sans);
   line-height: 1.4;
   font-weight: 400;
@@ -7,20 +7,74 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --font-sans: 'Space Grotesk', 'Segoe UI', sans-serif;
-  --font-mono: 'Space Mono', 'SFMono-Regular', monospace;
+  --font-sans: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Space Mono', 'JetBrains Mono', 'SFMono-Regular', monospace;
 
-  --bg: #f3f3f3;
-  --card: #ffffff;
-  --ink: #0b0b0b;
-  --ink-strong: #050505;
-  --ink-muted: #2f2f2f;
-  --ink-soft: #616161;
-  --border: #111111;
-  --border-soft: rgba(0, 0, 0, 0.12);
-  --radius-xl: 24px;
-  --radius-lg: 18px;
-  --radius-md: 12px;
+  /* Dark theme colors */
+  --bg: #050505;
+  --bg-surface: #0a0a0a;
+  --bg-elevated: #0f0f0f;
+  --card: rgba(15, 15, 15, 0.8);
+  --card-hover: rgba(25, 25, 25, 0.9);
+  --ink: #f8f8f8;
+  --ink-strong: #ffffff;
+  --ink-muted: #888888;
+  --ink-soft: #555555;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-soft: rgba(255, 255, 255, 0.04);
+  
+  /* Status colors */
+  --success: #00ff88;
+  --success-glow: rgba(0, 255, 136, 0.3);
+  --warning: #ff9500;
+  --warning-glow: rgba(255, 149, 0, 0.3);
+  --danger: #ff453a;
+  --danger-glow: rgba(255, 69, 58, 0.3);
+  --info: #007aff;
+  --info-glow: rgba(0, 122, 255, 0.3);
+  
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+  --gradient-surface: linear-gradient(145deg, #0a0a0a 0%, #050505 100%);
+  --gradient-card: linear-gradient(145deg, rgba(15, 15, 15, 0.9), rgba(10, 10, 10, 0.9));
+  --gradient-danger: linear-gradient(135deg, #ff453a 0%, #ff0000 100%);
+  --gradient-warning: linear-gradient(135deg, #ff9500 0%, #ff6b00 100%);
+  --gradient-success: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+  
+  /* Sizes */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.6);
+  --shadow-2xl: 0 40px 80px rgba(0, 0, 0, 0.7);
+  --shadow-glow-success: 0 0 20px var(--success-glow);
+  --shadow-glow-warning: 0 0 20px var(--warning-glow);
+  --shadow-glow-danger: 0 0 20px var(--danger-glow);
+  
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+  --space-4xl: 40px;
+  
+  /* Animation durations */
+  --duration-fast: 0.15s;
+  --duration-normal: 0.3s;
+  --duration-slow: 0.5s;
+  --duration-extra-slow: 0.8s;
 }
 
 * {
@@ -38,10 +92,11 @@ body {
   color: var(--ink);
   font-family: var(--font-sans);
   background-image:
-    linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-    radial-gradient(circle at top left, #ffffff 0%, #f3f3f3 55%, #ededed 100%);
-  background-size: 90px 90px, 90px 90px, cover;
+    radial-gradient(circle at 25% 15%, var(--success-glow) 0%, transparent 30%),
+    radial-gradient(circle at 75% 85%, var(--warning-glow) 0%, transparent 30%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.01) 0%, transparent 50%),
+    linear-gradient(135deg, #050505 0%, #0a0a0a 50%, #050505 100%);
+  background-attachment: fixed;
 }
 
 #root {
