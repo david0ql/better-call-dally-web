@@ -4,6 +4,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import 'react-toastify/dist/ReactToastify.css'
 import './App.css'
 
+declare global {
+  interface Window {
+    userInteracted?: boolean
+  }
+}
+
 type ConnectionState = 'connecting' | 'open' | 'closed' | 'error'
 
 type ServerStats = {
