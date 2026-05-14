@@ -16,8 +16,7 @@ type ServerStats = {
   cpuUsage?: number
   memoryTotal?: number
   memoryUsed?: number
-  diskTotal?: number
-  diskUsed?: number
+  disks?: Array<{ device: string; mount: string; total_bytes?: number; used_bytes?: number }>
   uptime?: string
   pm2Procs?: number
   pm2Mem?: number
@@ -59,8 +58,7 @@ type IncomingServerUpdate = {
   cpuUsage?: number
   memoryTotal?: number
   memoryUsed?: number
-  diskTotal?: number
-  diskUsed?: number
+  disks?: Array<{ device: string; mount: string; total_bytes?: number; used_bytes?: number }>
   uptime?: string
   pm2Procs?: number
   pm2Mem?: number
@@ -173,10 +171,13 @@ const getStatus = (server: ServerEntry, now: number): StatusInfo => {
   if (age > 60_000) return { key: 'stale', label: 'Stale' }
 
   const memPercent = percent(stats.memoryUsed, stats.memoryTotal) ?? 0
-  const diskPercent = percent(stats.diskUsed, stats.diskTotal) ?? 0
+  const maxDiskPercent = (stats.disks ?? []).reduce((max, d) => {
+    const p = percent(d.used_bytes, d.total_bytes) ?? 0
+    return Math.max(max, p)
+  }, 0)
   const cpu = stats.cpuUsage ?? 0
 
-  if (cpu > 85 || memPercent > 90 || diskPercent > 92) return { key: 'warn', label: 'Hot' }
+  if (cpu > 85 || memPercent > 90 || maxDiskPercent > 92) return { key: 'warn', label: 'Hot' }
   return { key: 'ok', label: 'Nominal' }
 }
 
@@ -189,12 +190,15 @@ const shouldAlert = (server: ServerEntry, now: number) => {
   if (age > ALERT_STALE_MS) return true
 
   const memPercent = percent(stats.memoryUsed, stats.memoryTotal) ?? 0
-  const diskPercent = percent(stats.diskUsed, stats.diskTotal) ?? 0
+  const maxDiskPercent = (stats.disks ?? []).reduce((max, d) => {
+    const p = percent(d.used_bytes, d.total_bytes) ?? 0
+    return Math.max(max, p)
+  }, 0)
   const cpu = stats.cpuUsage ?? 0
 
   const pm2Bad = (stats.pm2BadCount ?? 0) > 0
 
-  return cpu >= ALERT_CPU || memPercent >= ALERT_MEMORY || diskPercent >= ALERT_DISK || pm2Bad
+  return cpu >= ALERT_CPU || memPercent >= ALERT_MEMORY || maxDiskPercent >= ALERT_DISK || pm2Bad
 }
 
 const playAlertTone = () => {
@@ -309,8 +313,20 @@ const parseServerUpdate = (value: unknown): IncomingServerUpdate | null => {
   const cpu = isRecord(value.cpu) ? toNumber(value.cpu.usage_percent) : undefined
   const memoryTotal = isRecord(value.memory) ? toNumber(value.memory.total_bytes) : undefined
   const memoryUsed = isRecord(value.memory) ? toNumber(value.memory.used_bytes) : undefined
-  const diskTotal = isRecord(value.disk) ? toNumber(value.disk.total_bytes) : undefined
-  const diskUsed = isRecord(value.disk) ? toNumber(value.disk.used_bytes) : undefined
+
+  let disks: IncomingServerUpdate['disks'] = undefined
+  if (isRecord(value.disks) && Array.isArray(value.disks.disks)) {
+    disks = value.disks.disks.map((d: unknown) => {
+      if (!isRecord(d)) return { device: '', mount: '' }
+      return {
+        device: toString(d.device) ?? '',
+        mount: toString(d.mount) ?? '',
+        total_bytes: toNumber(d.total_bytes),
+        used_bytes: toNumber(d.used_bytes),
+      }
+    })
+  }
+
   const uptime = isRecord(value.uptime) ? toString(value.uptime.human) : undefined
     const pm2Procs = isRecord(value.pm2) ? toNumber(value.pm2.processes) : undefined
     const pm2Mem = isRecord(value.pm2) ? toNumber(value.pm2.total_memory_bytes) : undefined
@@ -338,8 +354,7 @@ const parseServerUpdate = (value: unknown): IncomingServerUpdate | null => {
       cpuUsage: cpu,
       memoryTotal,
       memoryUsed,
-      diskTotal,
-      diskUsed,
+      disks,
       uptime,
       pm2Procs,
       pm2Mem,
@@ -374,8 +389,20 @@ const parseStatsList = (value: unknown): IncomingServerUpdate[] => {
     const cpu = isRecord(entry.cpu) ? toNumber(entry.cpu.usage_percent) : undefined
     const memoryTotal = isRecord(entry.memory) ? toNumber(entry.memory.total_bytes) : undefined
     const memoryUsed = isRecord(entry.memory) ? toNumber(entry.memory.used_bytes) : undefined
-    const diskTotal = isRecord(entry.disk) ? toNumber(entry.disk.total_bytes) : undefined
-    const diskUsed = isRecord(entry.disk) ? toNumber(entry.disk.used_bytes) : undefined
+
+    let disks: IncomingServerUpdate['disks'] = undefined
+    if (isRecord(entry.disks) && Array.isArray(entry.disks.disks)) {
+      disks = entry.disks.disks.map((d: unknown) => {
+        if (!isRecord(d)) return { device: '', mount: '' }
+        return {
+          device: toString(d.device) ?? '',
+          mount: toString(d.mount) ?? '',
+          total_bytes: toNumber(d.total_bytes),
+          used_bytes: toNumber(d.used_bytes),
+        }
+      })
+    }
+
     const uptime = isRecord(entry.uptime) ? toString(entry.uptime.human) : undefined
     const pm2Procs = isRecord(entry.pm2) ? toNumber(entry.pm2.processes) : undefined
     const pm2Mem = isRecord(entry.pm2) ? toNumber(entry.pm2.total_memory_bytes) : undefined
@@ -403,8 +430,7 @@ const parseStatsList = (value: unknown): IncomingServerUpdate[] => {
       cpuUsage: cpu,
       memoryTotal,
       memoryUsed,
-      diskTotal,
-      diskUsed,
+      disks,
       uptime,
       pm2Procs,
       pm2Mem,
@@ -424,7 +450,6 @@ const ServerCard = ({ server, now }: { server: ServerEntry; now: number }) => {
   const stats = server.stats
   const cpu = stats?.cpuUsage
   const memPercent = percent(stats?.memoryUsed, stats?.memoryTotal)
-  const diskPercent = percent(stats?.diskUsed, stats?.diskTotal)
 
   return (
     <article
@@ -468,13 +493,18 @@ const ServerCard = ({ server, now }: { server: ServerEntry; now: number }) => {
             <div className="metricBarFill" style={{ width: `${memPercent ?? 0}%` }} />
           </div>
         </div>
-        <div className="metric">
-          <div className="metricLabel">Disk</div>
-          <div className="metricValue">{formatPercent(diskPercent)}</div>
-          <div className="metricBar">
-            <div className="metricBarFill" style={{ width: `${diskPercent ?? 0}%` }} />
-          </div>
-        </div>
+        {(stats?.disks ?? []).map((disk, idx) => {
+          const diskPct = percent(disk.used_bytes, disk.total_bytes)
+          return (
+            <div className="metric" key={`${server.id}-disk-${idx}`}>
+              <div className="metricLabel">Disk {disk.mount}</div>
+              <div className="metricValue">{formatPercent(diskPct)}</div>
+              <div className="metricBar">
+                <div className="metricBarFill" style={{ width: `${diskPct ?? 0}%` }} />
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <div className="serverFooter">
@@ -605,8 +635,7 @@ function App() {
               cpuUsage: payload.cpuUsage ?? item.stats?.cpuUsage,
               memoryTotal: payload.memoryTotal ?? item.stats?.memoryTotal,
               memoryUsed: payload.memoryUsed ?? item.stats?.memoryUsed,
-              diskTotal: payload.diskTotal ?? item.stats?.diskTotal,
-              diskUsed: payload.diskUsed ?? item.stats?.diskUsed,
+              disks: payload.disks ?? item.stats?.disks,
               uptime: payload.uptime ?? item.stats?.uptime,
               pm2Procs: payload.pm2Procs ?? item.stats?.pm2Procs,
               pm2Mem: payload.pm2Mem ?? item.stats?.pm2Mem,
@@ -938,11 +967,13 @@ function App() {
         memSum += memPct
         memCount += 1
       }
-      const diskPct = percent(stats?.diskUsed, stats?.diskTotal)
-      if (diskPct != null) {
-        diskSum += diskPct
-        diskCount += 1
-      }
+      ;(stats?.disks ?? []).forEach((d) => {
+        const diskPct = percent(d.used_bytes, d.total_bytes)
+        if (diskPct != null) {
+          diskSum += diskPct
+          diskCount += 1
+        }
+      })
       if (stats?.pm2Procs != null) pm2Total += stats.pm2Procs
       if (stats?.supervisorRunning != null) supRunning += stats.supervisorRunning
       if (stats?.supervisorTotal != null) supTotal += stats.supervisorTotal
